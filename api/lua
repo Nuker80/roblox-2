@@ -1,0 +1,161 @@
+-- LocalScript in StarterPlayerScripts oder StarterGui
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PlayerTrackerGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- Hauptfenster
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 500, 0, 550)
+frame.Position = UDim2.new(0.25, 0, 0.25, 0)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
+
+-- Titel
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 50)
+title.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+title.Text = "📋 Spieler-Tracker"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 26
+title.Parent = frame
+
+-- ScrollFrame
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Position = UDim2.new(0, 0, 0, 50)
+scrollingFrame.Size = UDim2.new(1, 0, 1, -100)
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollingFrame.ScrollBarThickness = 10
+scrollingFrame.BackgroundTransparency = 1
+scrollingFrame.Parent = frame
+
+local layout = Instance.new("UIListLayout")
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Padding = UDim.new(0, 8)
+layout.Parent = scrollingFrame
+
+-- Button-Leiste
+local buttonHolder = Instance.new("Frame")
+buttonHolder.Size = UDim2.new(1, 0, 0, 50)
+buttonHolder.Position = UDim2.new(0, 0, 1, -50)
+buttonHolder.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+buttonHolder.Parent = frame
+
+local function createButton(text, callback)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.33, -5, 1, -8)
+	btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+	btn.Text = text
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 18
+	btn.MouseButton1Click:Connect(callback)
+	return btn
+end
+
+-- Logs
+local logs = {}
+
+local function addLog(lines)
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, -16, 0, 80)
+	label.BackgroundTransparency = 1
+	label.Text = lines
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.Font = Enum.Font.Code
+	label.TextSize = 16
+	label.TextWrapped = true
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Top
+	label.Parent = scrollingFrame
+
+	logs[#logs + 1] = label
+	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+end
+
+local joinTimes = {}
+
+local function getTime()
+	return os.date("%H:%M:%S")
+end
+
+local function onPlayerAdded(p)
+	local now = tick()
+	joinTimes[p.UserId] = now
+
+	local pos = p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character.HumanoidRootPart.Position
+	local posText = pos and string.format("(%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z) or "?"
+
+	local logText = string.format(
+		"[+ %s] Spieler beigetreten:\n👤 %s (%s)\n🆔 ID: %d\n📍 Position: %s\n👥 Spieler gesamt: %d\n––––––––––––––––––––––",
+		getTime(), p.DisplayName, p.Name, p.UserId, posText, #Players:GetPlayers()
+	)
+	addLog(logText)
+end
+
+local function onPlayerRemoving(p)
+	local joinTime = joinTimes[p.UserId]
+	local minutes = joinTime and math.floor((tick() - joinTime) / 60) or "?"
+	local logText = string.format(
+		"[- %s] Spieler verlassen:\n👤 %s (%s)\n🕒 Spielzeit: %s Min\n👥 Spieler jetzt: %d\n––––––––––––––––––––––",
+		getTime(), p.DisplayName, p.Name, minutes, #Players:GetPlayers() - 1
+	)
+	addLog(logText)
+end
+
+-- Start mit vorhandenen Spielern
+for _, p in pairs(Players:GetPlayers()) do
+	if p ~= player then
+		onPlayerAdded(p)
+	end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Buttons
+local clearBtn = createButton("🧹 Leeren", function()
+	for _, label in ipairs(logs) do
+		label:Destroy()
+	end
+	logs = {}
+	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+end)
+
+local toggleBtn = createButton("👁️ Verstecken", function()
+	frame.Visible = false
+end)
+
+local closeBtn = createButton("❌ Löschen", function()
+	screenGui:Destroy()
+end)
+
+clearBtn.Position = UDim2.new(0, 0, 0, 0)
+toggleBtn.Position = UDim2.new(0.33, 2, 0, 0)
+closeBtn.Position = UDim2.new(0.66, 4, 0, 0)
+
+clearBtn.Parent = buttonHolder
+toggleBtn.Parent = buttonHolder
+closeBtn.Parent = buttonHolder
+
+-- Tastenkürzel
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+
+	if input.KeyCode == Enum.KeyCode.F8 then
+		frame.Visible = not frame.Visible
+	elseif input.KeyCode == Enum.KeyCode.F7 then
+		screenGui:Destroy()
+	end
+end)
